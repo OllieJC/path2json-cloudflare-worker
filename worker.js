@@ -56,6 +56,10 @@ export default {
         if (parsed.rawText.length > 64_000)
           return json({ error: "Payload too large" }, 413);
 
+        if (parts.includes("add_client_id")) {
+          parsed.value["client_id"] = url;
+        }
+
         // Success: echo parsed JSON
         return json(parsed.value);
       }
