@@ -8,6 +8,7 @@ A minimal Cloudflare Worker that decodes JSON directly from the URL path.
 - Supports raw, URL-encoded, Base64, Base32, and hex JSON
 - Deterministic: same path → same output
 - 64 KB payload limit
+- Optionally adding `client_id` which equals the URL
 - CORS-enabled (GET, HEAD, OPTIONS)
 - Caching  
   - Root: 1 hour browser / 1 day edge  
@@ -16,3 +17,5 @@ A minimal Cloudflare Worker that decodes JSON directly from the URL path.
 # Examples
 
 - <https://path2json.olliejc.workers.dev/7b22636c69656e745f6e616d65223a2274657374696e67227d/client.json>
+- <https://path2json.olliejc.workers.dev/7b22636c69656e745f6e616d65223a2274657374696e67227d/add_client_id/client.json>
+- <https://path2json.olliejc.workers.dev/e30/add_client_id/client.json>
