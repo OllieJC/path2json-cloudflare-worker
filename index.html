@@ -83,6 +83,13 @@
         </div>
       </div>
 
+      <div class="row">
+        <label>
+          <input id="addClientId" type="checkbox" />
+          Add <code>client_id</code> to JSON object
+        </label>
+      </div>
+
       <div class="actions">
         <button id="build">Build URL</button>
         <button id="open" class="secondary">Open in new tab</button>
@@ -151,12 +158,14 @@
       const origin = location.origin;
       const filename = (fileEl.value || "client.json").replace(/^\/+/, "");
       const raw = jsonEl.value.trim();
+      const addClientId = document.getElementById("addClientId").checked;
       if (!raw) { setStatus("Enter some JSON.", false); outEl.value = ""; return; }
       try {
         const min = minify(raw);
         const encoder = encoders[encEl.value] || encoders.b64url;
         const segment = encoder(min);
-        const url = `${origin}/${segment}/${filename}`;
+        const mid = addClientId ? "/add_client_id" : "";
+        const url = `${origin}/${segment}${mid}/${filename}`;
         outEl.value = url;
         setStatus("Valid JSON ✓", true);
         return url;
