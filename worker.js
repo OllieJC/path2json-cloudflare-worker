@@ -29,7 +29,7 @@ export default {
     // - "{" or URL-encoded variants for JSON
     // - "pm"/"ey" for common base32/base64url JSON prefixes
     // - "7b" for hex-encoded '{'
-    const START_PREFIXES = ["{", "%7b", "7b", "pm", "ey"];
+    const START_PREFIXES = ["{", "%7b", "7b", "pm", "ey", "e30"];
 
     // Find the first segment that looks like the start of an encoded JSON blob
     let startIdx = -1;
@@ -146,7 +146,7 @@ function safeDecodeURIComponent(s) {
 // Heuristic: base64url/standard payloads for JSON often start with "ey" ("{": 0x7B → "ey...")
 function looksLikeB64Prefix(s) {
   const lower = s.slice(0, 2).toLowerCase();
-  return ["ey"].includes(lower);
+  return ["ey", "e3"].includes(lower);
 }
 
 // Base32 encodings of "{" commonly start with "pm"/"on"/"em" (heuristic, not exhaustive)
