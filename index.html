@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Path2JSON URL Builder</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --bg:#0b0f14; --card:#111824; --ink:#e9eef5; --muted:#9bb0c3; --accent:#7cc4ff; --bad:#ff6b6b; --ok:#6ee7a8; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      padding: 2em;
+      font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 80% -10%, #1b2735 0%, #0b0f14 60%) fixed, var(--bg);
+      color: var(--ink);
+      display: grid; place-items: start center; padding: 40px 16px;
+    }
+    .wrap { width: 100%; max-width: 820px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 22px; box-shadow: 0 3px 15px rgba(124, 196, 255, .25);
+      backdrop-filter: blur(6px);
+    }
+    h1 { font-size: 24px; margin: 0 0 8px; letter-spacing: 0.2px; }
+    p.lead { color: var(--muted); margin: 0 0 18px; }
+    .row { display: grid; gap: 12px; margin: 14px 0; }
+    @media (min-width: 760px){ .row.cols { grid-template-columns: 1fr 220px; align-items: start; } }
+    label { font-weight: 600; display: block; margin-bottom: 6px; color: var(--ink); }
+    textarea, input[type="text"], select {
+      width: 100%; border-radius: 10px; background: var(--card); color: var(--ink);
+      border: 1px solid rgba(255,255,255,0.12); padding: 12px 12px; outline: none;
+    }
+    textarea { min-height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    button, .btn {
+      appearance: none; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 600; cursor: pointer;
+      background: linear-gradient(180deg, #9ad7ff, #7cc4ff); color:#00233d; box-shadow: 0 3px 15px rgba(124, 196, 255, .25);
+    }
+    button.secondary { background: transparent; color: var(--ink); border: 1px solid rgba(255,255,255,0.18); }
+    .out {
+      margin-top: 14px; padding: 12px; border-radius: 10px; background: var(--card); border: 1px solid rgba(255,255,255,0.1);
+      display: grid; gap: 8px;
+    }
+    .status { font-size: 14px; color: var(--muted); }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--bad); }
+    code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+    .urlbox { display: grid; gap: 8px; }
+    .urlbox input { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .hint { color: var(--muted); font-size: 14px; }
+    .footer { margin-top: 16px; color: var(--muted); font-size: 13px; text-align: center; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Path2JSON</h1>
+      <p class="lead">Paste JSON, pick an encoding, get a URL. Hitting that URL returns your JSON with the correct <code>Content-Type</code>.</p>
+
+      <div class="row">
+        <label for="json">JSON</label>
+        <textarea id="json" placeholder='{"client_name":"example"}'></textarea>
+      </div>
+
+      <div class="row cols">
+        <div>
+          <label for="encoding">Encoding</label>
+          <select id="encoding">
+            <option value="b64url" selected>Base64URL (no padding)</option>
+            <option value="url">URL-encoded JSON</option>
+            <option value="base32">Base32</option>
+            <option value="hex">Hex</option>
+          </select>
+          <p class="hint">Worker also accepts raw “{…}” if safe, and auto-detects <code>ey…</code>, <code>pm…</code>, <code>7b…</code>.</p>
+        </div>
+        <div>
+          <label for="filename">Suffix</label>
+          <input id="filename" type="text" value="client.json" />
+          <p class="hint">Appended after the encoded segment.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="build">Build URL</button>
+        <button id="open" class="secondary">Open in new tab</button>
+        <button id="copy" class="secondary">Copy URL</button>
+      </div>
+
+      <div class="out">
+        <div id="status" class="status">Waiting for input…</div>
+        <div class="urlbox">
+          <label for="outUrl">Generated URL</label>
+          <input id="outUrl" type="text" readonly />
+        </div>
+      </div>
+
+      <div class="footer">
+        <span><a href="https://github.com/OllieJC/path2json-cloudflare-worker">OllieJC/path2json-cloudflare-worker</a></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const jsonEl = $("json"), encEl = $("encoding"), fileEl = $("filename");
+    const outEl = $("outUrl"), statusEl = $("status");
+    const buildBtn = $("build"), openBtn = $("open"), copyBtn = $("copy");
+
+    function setStatus(msg, ok) {
+      statusEl.textContent = msg;
+      statusEl.className = "status " + (ok === true ? "ok" : ok === false ? "err" : "");
+    }
+
+    function minify(jsonText) {
+      const val = JSON.parse(jsonText);
+      return JSON.stringify(val);
+    }
+
+    // Encoders
+    const encoders = {
+      url: (s) => encodeURIComponent(s),
+      hex: (s) => {
+        const bytes = new TextEncoder().encode(s);
+        return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+      },
+      b64url: (s) => {
+        // UTF-8 → base64url (no padding)
+        const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+        return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      },
+      base32: (s) => {
+        // Crockford-ish RFC4648 alphabet without separators
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        const bytes = new TextEncoder().encode(s);
+        let bits = "", out = "";
+        for (const b of bytes) bits += b.toString(2).padStart(8,"0");
+        for (let i=0;i<bits.length;i+=5){
+          const chunk = bits.slice(i,i+5);
+          if (chunk.length < 5) out += alphabet[parseInt(chunk.padEnd(5,"0"),2)];
+          else out += alphabet[parseInt(chunk,2)];
+        }
+        // We omit padding for compact URLs
+        return out;
+      }
+    };
+
+    function buildUrl() {
+      const origin = location.origin;
+      const filename = (fileEl.value || "client.json").replace(/^\/+/, "");
+      const raw = jsonEl.value.trim();
+      if (!raw) { setStatus("Enter some JSON.", false); outEl.value = ""; return; }
+      try {
+        const min = minify(raw);
+        const encoder = encoders[encEl.value] || encoders.b64url;
+        const segment = encoder(min);
+        const url = `${origin}/${segment}/${filename}`;
+        outEl.value = url;
+        setStatus("Valid JSON ✓", true);
+        return url;
+      } catch (e) {
+        setStatus("Invalid JSON: " + e.message, false);
+        outEl.value = "";
+        return null;
+      }
+    }
+
+    buildBtn.addEventListener("click", buildUrl);
+    openBtn.addEventListener("click", () => {
+      const url = buildUrl();
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    });
+    copyBtn.addEventListener("click", async () => {
+      const url = buildUrl();
+      if (!url) return;
+      try { await navigator.clipboard.writeText(url); setStatus("Copied ✓", true); }
+      catch { setStatus("Copy failed. You can select the URL and copy.", false); }
+    });
+
+    // Live validation feedback
+    jsonEl.addEventListener("input", () => {
+      try { minify(jsonEl.value); setStatus("Looks valid…", true); }
+      catch { setStatus("Waiting for valid JSON…", null); }
+    });
+  </script>
+</body>
+</html>
